@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hologram Messenger</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --accent: #38bdf8;
+      --out: #0284c7;
+      --in: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--text); height: 100vh; display: flex; justify-content: center; }
+    .app { width: 100%; max-width: 480px; height: 100vh; display: flex; flex-direction: column; background: var(--panel); }
+    header { padding: 14px 16px; background: #0b1120; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
+    .brand { font-weight: 700; font-size: 18px; letter-spacing: 0.4px; color: var(--accent); }
+    .auth-box, .chat-screen { padding: 16px; display: none; flex-direction: column; gap: 12px; flex: 1; overflow-y: auto; }
+    .active { display: flex; }
+    input, button { padding: 12px; border-radius: 10px; border: 1px solid #475569; font-size: 15px; }
+    input { background: #0f172a; color: var(--text); width: 100%; }
+    button { background: var(--accent); color: #082f49; font-weight: 600; border: none; cursor: pointer; }
+    button.secondary { background: #334155; color: var(--text); }
+    .row { display: flex; gap: 8px; }
+    .messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }
+    .msg { max-width: 78%; padding: 10px 12px; border-radius: 14px; font-size: 14px; line-height: 1.4; }
+    .msg.in { background: var(--in); align-self: flex-start; }
+    .msg.out { background: var(--out); align-self: flex-end; }
+    .meta { font-size: 11px; color: #cbd5e1; margin-top: 4px; text-align: right; }
+    .composer { display: flex; gap: 8px; padding-top: 8px; border-top: 1px solid #334155; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <span class="brand">Hologram</span>
+      <span id="userBadge" style="font-size:13px;color:var(--muted);">Не в сети</span>
+    </header>
+
+    <!-- Экран входа по номеру -->
+    <section id="authScreen" class="auth-box active">
+      <h3 style="margin:0;">Вход в Hologram</h3>
+      <p style="margin:0;color:var(--muted);font-size:14px;">
+        Введите номер телефона или сгенерируйте тестовый номер для проверки интерфейса.
+      </p>
+      <input id="phoneInput" type="tel" placeholder="+7 700 000 00 00" />
+      <div class="row">
+        <button id="genPhoneBtn" class="secondary" type="button" style="flex:1;">Случайный номер</button>
+        <button id="loginBtn" type="button" style="flex:1;">Войти</button>
+      </div>
+    </section>
+
+    <!-- Экран чата -->
+    <section id="chatScreen" class="chat-screen">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong>Общий чат Hologram</strong>
+        <button id="logoutBtn" class="secondary" type="button" style="padding:6px 10px;font-size:12px;">Выйти</button>
+      </div>
+      <div id="messagesList" class="messages"></div>
+      <form id="msgForm" class="composer">
+        <input id="msgInput" type="text" placeholder="Сообщение..." autocomplete="off" required />
+        <button type="submit">Отправить</button>
+      </form>
+    </section>
+  </div>
+
+  <script>
+    const authScreen = document.getElementById('authScreen');
+    const chatScreen = document.getElementById('chatScreen');
+    const phoneInput = document.getElementById('phoneInput');
+    const userBadge = document.getElementById('userBadge');
+    const messagesList = document.getElementById('messagesList');
+    const msgForm = document.getElementById('msgForm');
+    const msgInput = document.getElementById('msgInput');
+
+    const STORAGE_KEY = 'hologram_messages_v1';
+    let currentPhone = localStorage.getItem('hologram_phone') || '';
+
+    function randomPhone() {
+      const n = () => Math.floor(100 + Math.random() * 900);
+      const m = () => Math.floor(10 + Math.random() * 90);
+      return `+7 7${n().toString().slice(0,2)} ${n()} ${m()} ${m()}`;
+    }
+
+    function loadMessages() {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      if (saved.length === 0) {
+        saved.push({
+          sender: 'Hologram Bot',
+          text: 'Привет! Это прототип Hologram. Введи любой номер или сгенерируй случайный и отправь сообщение.',
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          type: 'in'
+        });
+      }
+      renderMessages(saved);
+    }
+
+    function renderMessages(list) {
+      messagesList.innerHTML = '';
+      list.forEach(item => {
+        const div = document.createElement('div');
+        div.className = `msg ${item.type}`;
+        div.innerHTML = `<div>${escapeHtml(item.text)}</div><div class="meta">${escapeHtml(item.sender)} • ${item.time}</div>`;
+        messagesList.appendChild(div);
+      });
+      messagesList.scrollTop = messagesList.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    }
+
+    function showChat(phone) {
+      currentPhone = phone;
+      localStorage.setItem('hologram_phone', phone);
+      userBadge.textContent = phone;
+      authScreen.classList.remove('active');
+      chatScreen.classList.add('active');
+      loadMessages();
+    }
+
+    document.getElementById('genPhoneBtn').addEventListener('click', () => {
+      phoneInput.value = randomPhone();
+    });
+
+    document.getElementById('loginBtn').addEventListener('click', () => {
+      const phone = phoneInput.value.trim() || randomPhone();
+      showChat(phone);
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      localStorage.removeItem('hologram_phone');
+      currentPhone = '';
+      userBadge.textContent = 'Не в сети';
+      chatScreen.classList.remove('active');
+      authScreen.classList.add('active');
+    });
+
+    msgForm.addEventListener('submit', e => {
+      e.preventDefault();
+      const text = msgInput.value.trim();
+      if (!text) return;
+      const list = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      list.push({
+        sender: currentPhone,
+        text,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        type: 'out'
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+      msgInput.value = '';
+      renderMessages(list);
+    });
+
+    if (currentPhone) showChat(currentPhone);
+  </script>
+</body>
+    </html>
+
